@@ -4,7 +4,8 @@ import os
 import threading
 import asyncio
 import json
-from main_downloader import run
+from datetime import datetime
+from main import run
 
 DEFAULT_CONFIG_PATH = "config.json"
 DEFAULT_EDGE_PATH = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
@@ -14,7 +15,7 @@ class App:
     def __init__(self, root):
         self.root = root
         self.root.title("UPS Invoice Downloader")
-        self.root.geometry("600x250")
+        self.root.geometry("700x400")
 
         self.load_config()
 
@@ -36,6 +37,10 @@ class App:
         tk.Button(root, text="Open Edge for Login", command=self.open_edge_debug).pack(pady=5)
         tk.Button(root, text="Run Downloader", command=self.start_download).pack(pady=10)
 
+        self.log_text = tk.Text(root, height=10, width=80)
+        self.log_text.pack(pady=10)
+        self.log_text.insert(tk.END, "Log initialized...\n")
+
     def browse_edge(self):
         path = filedialog.askopenfilename(title="Select msedge.exe", filetypes=[("Edge Executable", "msedge.exe")])
         if path:
@@ -50,7 +55,20 @@ class App:
 
     def start_download(self):
         os.environ["UPS_OUTPUT_DIR"] = self.output_path.get()
-        threading.Thread(target=lambda: asyncio.run(run()), daemon=True).start()
+        os.environ["UPS_LOG_HANDLER"] = "1"
+        threading.Thread(target=lambda: asyncio.run(run(log_func=self.log)), daemon=True).start()
+
+    def log(self, message):
+        timestamp = datetime.now().strftime("[%H:%M:%S] ")
+        if "error" in message.lower() or "fail" in message.lower():
+            self.log_text.insert(tk.END, timestamp, "timestamp")
+            self.log_text.insert(tk.END, message + "\n", "error")
+        else:
+            self.log_text.insert(tk.END, timestamp + message + "\n")
+        self.log_text.see(tk.END)
+
+        self.log_text.tag_config("error", foreground="red")
+        self.log_text.tag_config("timestamp", foreground="gray")
 
     def load_config(self):
         if os.path.exists(DEFAULT_CONFIG_PATH):
