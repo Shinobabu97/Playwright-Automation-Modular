@@ -2,16 +2,16 @@ import asyncio
 import os
 from playwright.async_api import async_playwright
 from downloader.blob_utils import download_blob_pdf_from_tab
-from downloader.click_download import download_file  # <- Import the alt-click PDF downloader
+from downloader.click_download import download_file
 
-SAVE_DIR = r"C:\\Users\\wn00246424\\OneDrive - WGS 365\\SHINO"
+# Get output directory from environment or fallback
+SAVE_DIR = os.getenv("UPS_OUTPUT_DIR", r"C:\Users\wn00246424\OneDrive - WGS 365\SHINO")
 
 async def run():
     async with async_playwright() as p:
         browser = await p.chromium.connect_over_cdp("http://localhost:9222")
         context = browser.contexts[0] if browser.contexts else await browser.new_context()
 
-        # Try to find the page with the UPS invoices
         page = next((p for p in context.pages if "billing.ups.com/ups/billing/invoice" in p.url), None) #Give the default page mention in GUI Launcher
         if not page:
             print("Invoice page not found.")
