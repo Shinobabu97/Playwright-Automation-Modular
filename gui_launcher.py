@@ -15,12 +15,14 @@ class App:
     def __init__(self, root):
         self.root = root
         self.root.title("UPS Invoice Downloader")
-        self.root.geometry("700x400")
+        self.root.geometry("700x480")
 
         self.load_config()
 
         self.edge_path = tk.StringVar(value=self.config.get("edge_path", DEFAULT_EDGE_PATH))
         self.output_path = tk.StringVar(value=self.config.get("output_path", DEFAULT_OUTPUT_DIR))
+        self.should_stop = False
+        self.is_paused = False
 
         tk.Label(root, text="Path to Edge Executable:").pack(pady=5)
         self.edge_entry = tk.Entry(root, textvariable=self.edge_path, width=60)
@@ -34,8 +36,13 @@ class App:
         self.output_entry.pack(side=tk.LEFT)
         tk.Button(output_frame, text="Set Default", command=self.save_config).pack(side=tk.LEFT, padx=5)
 
-        tk.Button(root, text="Open Edge for Login", command=self.open_edge_debug).pack(pady=5)
-        tk.Button(root, text="Run Downloader", command=self.start_download).pack(pady=10)
+        button_frame = tk.Frame(root)
+        button_frame.pack(pady=10)
+        tk.Button(button_frame, text="Open Edge for Login", command=self.open_edge_debug).pack(side=tk.LEFT, padx=10)
+        tk.Button(button_frame, text="Run Downloader", command=self.start_download).pack(side=tk.LEFT, padx=10)
+        tk.Button(button_frame, text="Stop Download", command=self.stop_download).pack(side=tk.LEFT, padx=10)
+        self.pause_button = tk.Button(button_frame, text="Pause", command=self.toggle_pause)
+        self.pause_button.pack(side=tk.LEFT, padx=10)
 
         self.log_text = tk.Text(root, height=10, width=80)
         self.log_text.pack(pady=10)
@@ -54,9 +61,32 @@ class App:
         os.system(f'start "" "{edge_path}" --remote-debugging-port=9222 --start-maximized https://billing.ups.com/ups/billing/invoice') # give default page to open. Change it main as well
 
     def start_download(self):
+        self.should_stop = False
+        self.is_paused = False
         os.environ["UPS_OUTPUT_DIR"] = self.output_path.get()
-        os.environ["UPS_LOG_HANDLER"] = "1"
-        threading.Thread(target=lambda: asyncio.run(run(log_func=self.log)), daemon=True).start()
+        threading.Thread(
+            target=lambda: asyncio.run(
+                run(
+                    log_func=self.log,
+                    should_stop_callback=lambda: self.should_stop,
+                    should_pause_callback=lambda: self.is_paused
+                )
+            ),
+            daemon=True
+        ).start()
+
+    def stop_download(self):
+        self.should_stop = True
+        self.log("⏹ Stop requested by user.")
+
+    def toggle_pause(self):
+        self.is_paused = not self.is_paused
+        new_label = "Resume" if self.is_paused else "Pause"
+        self.pause_button.config(text=new_label)
+        if self.is_paused:
+            self.log("⏸ Paused by user.")
+        else:
+            self.log("▶️ Resumed by user.")
 
     def log(self, message):
         timestamp = datetime.now().strftime("[%H:%M:%S] ")
